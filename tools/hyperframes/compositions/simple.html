@@ -1,0 +1,110 @@
+<!doctype html>
+<!--
+  Simple: the footage full screen for the whole clip, one caption line, nothing else -
+  no PiP circle, no stage graphics, no background motion. Same fonts, colours and
+  caption typography as talking-head.html (brand/theme.css): use this template
+  when a video needs no per-video graphics, just cuts and captions.
+
+  Rendered by vid.py `compose`: it copies this file next to the cut clip, replaces
+  __DURATION__ / __FPS__ / __VIDEO__, and passes everything else via --variables-file:
+    src   {w, h}              cut clip frame size
+    words [{w, s, e}]         caption words on the cut timeline
+    caption  bool             show the caption line
+    emph  {normword: "bold"|"serif"}  caption emphasis (bold caps / serif italic)
+-->
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      /*__THEME__*/
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
+        font-family: var(--font-sans); color: var(--text); }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+
+      /* speaker: full screen for the whole clip, no PiP circle */
+      #vw { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #vw video { position: absolute; left: 0; top: 0; }
+      #vig { position: absolute; inset: 0; pointer-events: none;
+        background: radial-gradient(ellipse 80% 60% at 50% 45%, transparent 40%, rgba(0, 0, 0, 0.55) 100%); }
+
+      /* caption: same typography as talking-head.html's full-screen caption style */
+      #caps { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
+      .ph { position: absolute; left: 40px; width: 1000px; top: 1120px; text-align: center; white-space: nowrap;
+        font-size: 60px; font-weight: 600; color: var(--overlay-text); text-shadow: 0 3px 16px rgba(0, 0, 0, 0.7); opacity: 0; }
+      .ph .w { opacity: 0.28; }
+      .ph .w.bold { font-weight: 800; text-transform: uppercase; box-shadow: inset 0 -8px 0 var(--accent-hi); }
+      .ph .w.serif { font-family: var(--font-accent); font-style: var(--accent-style); font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="__DURATION__" data-fps="__FPS__" data-width="1080" data-height="1920">
+      <div id="vw">
+        <video id="clip" src="__VIDEO__" muted playsinline data-start="0" data-duration="__DURATION__" data-track-index="1"></video>
+      </div>
+      <div id="vig"></div>
+      <audio id="voice" src="__VIDEO__" data-start="0" data-duration="__DURATION__" data-track-index="10" data-volume="1"></audio>
+      <div id="caps"></div>
+    </div>
+    <script>
+      (function () {
+        var V = window.__hyperframes.getVariables();
+        var D = parseFloat(document.getElementById("root").getAttribute("data-duration"));
+        var FPS = parseFloat(document.getElementById("root").getAttribute("data-fps")) || 30;
+        var W = 1080, H = 1920;
+        var q = function (t) { return Math.round(t * FPS) / FPS; };
+        var el = function (tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+        var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+        var norm = function (w) { return w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ""); };
+
+        function build() {
+          var tl = gsap.timeline({ paused: true });
+
+          // ---- speaker: full screen the whole clip, cover-fit like talking-head.html
+          var src = V.src || { w: W, h: H };
+          var k0 = Math.max(W / src.w, H / src.h);
+          gsap.set("#clip", { left: (W - src.w * k0) / 2, top: (H - src.h * k0) / 2, width: src.w * k0, height: src.h * k0 });
+
+          // ---- caption: one phrase at a time, words light up as spoken (same as talking-head.html)
+          var caps = document.getElementById("caps");
+          if (V.caption !== false) {
+            var words = V.words || [], emph = V.emph || {}, groups = [], cur = [];
+            words.forEach(function (w) {
+              var last = cur[cur.length - 1];
+              var len = cur.reduce(function (a, x) { return a + x.w.length + 1; }, 0);
+              if (last && (cur.length >= 5 || len + w.w.length > 28 || w.s - last.e > 0.45 || /[.!?…]$/.test(last.w))) { groups.push(cur); cur = []; }
+              cur.push(w);
+            });
+            if (cur.length) groups.push(cur);
+            groups.forEach(function (g, gi) {
+              var ph = el("div", "ph");
+              g.forEach(function (w, wi) {
+                var sp = el("span", "w " + (emph[norm(w.w)] || ""));
+                sp.textContent = w.w.replace(/[,.;:]$/, "");
+                ph.appendChild(sp);
+                if (wi < g.length - 1) ph.appendChild(document.createTextNode(" "));
+                tl.to(sp, { opacity: 1, duration: 0.08, ease: "none" }, q(w.s));
+              });
+              caps.appendChild(ph);
+              var s = q(Math.max(0, g[0].s - 0.05));
+              var next = groups[gi + 1];
+              var e = q(Math.min(D, next ? next[0].s - 0.05 : g[g.length - 1].e + 0.6, g[g.length - 1].e + 1.2));
+              tl.fromTo(ph, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.14, ease: "power2.out" }, s);
+              tl.set(ph, { opacity: 0 }, Math.max(s + 0.15, e));
+            });
+            // phrases wider than the frame shrink to fit (fonts are loaded here)
+            Array.prototype.forEach.call(caps.children, function (ph) {
+              if (ph.scrollWidth > 1000) ph.style.fontSize = Math.floor(60 * 1000 / ph.scrollWidth) + "px";
+            });
+          }
+
+          tl.to({}, { duration: 0 }, D);
+          window.__timelines["main"] = tl;
+        }
+
+        document.fonts.ready.then(build);
+      })();
+    </script>
+  </body>
+</html>

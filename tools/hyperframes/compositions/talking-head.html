@@ -1,0 +1,449 @@
+<!doctype html>
+<!--
+  TalkingHead: the whole final frame for a cut talking-head clip (9:16):
+  brand style (brand/theme.css: colours and fonts, injected at the
+  THEME marker; sharp edges): grid background, the
+  speaker full screen -> circle PiP -> full screen, a stage above the circle that
+  swaps designed visuals every 1-3 s, one caption line above the circle.
+
+  Rendered by vid.py `compose`: it copies this file next to the cut clip, replaces
+  __DURATION__ / __FPS__ / __VIDEO__, and passes everything else via --variables-file:
+    src   {w, h}              cut clip frame size
+    face  {x, y, w, h}        median face box in clip pixels (circle framing), optional
+    pip   [{start, end}]      spans in circle mode; outside them the speaker is full screen
+    words [{w, s, e}]         caption words on the cut timeline
+    caption  bool             show the caption line
+    emph  {normword: "bold"|"serif"}  caption emphasis (bold caps / serif italic)
+    beats [{start, end, kind, ...}]   stage visuals, see BUILD below for the fields per kind
+-->
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      /*__THEME__*/
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
+        font-family: var(--font-sans); color: var(--text); }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+
+      /* grid background (pattern of the registry's dynamic-grid) + vignette */
+      #grid { position: absolute; inset: -120px; pointer-events: none;
+        background-image: linear-gradient(var(--line) 2px, transparent 2px), linear-gradient(90deg, var(--line) 2px, transparent 2px);
+        background-size: 120px 120px; }
+      #vig { position: absolute; inset: 0; pointer-events: none;
+        background: radial-gradient(ellipse 80% 60% at 50% 45%, transparent 40%, var(--vignette) 100%); }
+      .node { position: absolute; width: 26px; height: 26px; }
+      .node::before, .node::after { content: ""; position: absolute; background: color-mix(in srgb, var(--text) 32%, transparent); }
+      .node::before { left: 12px; top: 0; width: 2px; height: 26px; }
+      .node::after { left: 0; top: 12px; width: 26px; height: 2px; }
+      .node.r::before, .node.r::after { background: none; }
+      .node.r { width: 12px; height: 12px; margin: 7px 0 0 7px; background: var(--accent); }
+
+      /* speaker */
+      #vw { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+      #vw video { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: fill; }
+      #hud { position: absolute; opacity: 0; pointer-events: none; }
+
+      /* stage */
+      #stage { position: absolute; left: 40px; top: 190px; width: 1000px; height: 760px; }
+      .beat { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; }
+      .shadow { box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55); }
+      .tk { position: relative; }
+      .tk::before, .tk::after { content: ""; position: absolute; width: 30px; height: 30px; border: 0 solid var(--accent-hi); }
+      .tk::before { left: -8px; top: -8px; border-left-width: 4px; border-top-width: 4px; }
+      .tk::after { right: -8px; bottom: -8px; border-right-width: 4px; border-bottom-width: 4px; }
+      .mark { background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 50% / 100% 100%; padding: 0 10px; }
+      .ser { font-family: var(--font-accent); font-style: var(--accent-style); font-weight: 700; }
+      .lbl { font-size: 26px; font-weight: 800; letter-spacing: 5px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 16px; }
+      .lbl::before { content: ""; width: 14px; height: 14px; background: var(--accent-hi); flex: 0 0 14px; }
+
+      /* building blocks for custom beats (composition.json HTML): theme only, no new colours */
+      .card { background: var(--panel); border: 2px solid var(--edge); padding: 36px 40px; }
+      .card.hot { background: var(--accent); border-color: var(--accent-hi); }
+      .chip { display: inline-flex; align-items: center; gap: 12px; padding: 10px 18px; background: var(--panel-2); border: 2px solid var(--edge); font-size: 28px; font-weight: 600; }
+      .chip.hot { background: var(--accent); border-color: var(--accent-hi); }
+      .h1 { font-size: 96px; line-height: 1.05; font-weight: 800; letter-spacing: -2px; }
+      .h2 { font-size: 56px; line-height: 1.1; font-weight: 800; letter-spacing: -1px; }
+      .body { font-size: 38px; line-height: 1.25; font-weight: 600; }
+      .small { font-size: 26px; line-height: 1.3; color: var(--muted); }
+      .muted { color: var(--muted); } .accent { color: var(--accent-hi); }
+      .row { display: flex; align-items: center; gap: 24px; } .col { display: flex; flex-direction: column; gap: 20px; }
+      .center { display: flex; align-items: center; justify-content: center; text-align: center; }
+      .line { height: 2px; background: var(--edge); }
+      .icon { display: inline-flex; width: 96px; height: 96px; color: var(--text); }
+      .icon svg { width: 100%; height: 100%; }
+      .icon.accent { color: var(--accent-hi); } .icon.sm { width: 56px; height: 56px; } .icon.lg { width: 180px; height: 180px; }
+      .b-icon { margin: 0 auto 26px; }
+      .b-custom { position: relative; width: 1000px; height: 760px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+      .b-title { width: 940px; text-align: center; }
+      .b-title h1 { font-size: 104px; line-height: 1.08; font-weight: 800; letter-spacing: -2px; }
+      .b-title h1 .w { display: inline-block; }
+      .b-title p { margin-top: 30px; font-size: 38px; color: var(--muted); font-weight: 600; }
+
+      .b-num { text-align: center; }
+      .b-num .val { font-size: 230px; line-height: 1; font-weight: 800; letter-spacing: -6px; }
+      .b-num .bar { height: 14px; width: 0; margin: 18px auto 0; background: var(--accent-hi); }
+      .b-num .lab { margin-top: 30px; font-size: 42px; font-weight: 600; color: var(--muted); }
+
+      .b-list { width: 860px; background: var(--panel); border: 2px solid var(--edge); padding: 48px 56px; }
+      .b-list h2 { margin-bottom: 26px; }
+      .b-list .it { display: flex; align-items: center; gap: 26px; font-size: 42px; font-weight: 600; padding: 20px 0; border-top: 2px solid var(--edge); }
+      .b-list .ck { flex: 0 0 52px; height: 52px; background: var(--accent); display: flex; align-items: center; justify-content: center; }
+
+      .b-chat .phone { width: 440px; height: 740px; border: 3px solid var(--edge); outline: 10px solid color-mix(in srgb, var(--bg) 55%, black); border-radius: 30px; background: color-mix(in srgb, var(--bg) 85%, black); overflow: hidden; position: relative; }
+      .b-chat .top { height: 96px; background: var(--panel); border-bottom: 2px solid var(--edge); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 12px; }
+      .b-chat .top b { font-size: 24px; } .b-chat .top span { font-size: 16px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; }
+      .b-chat .notch { position: absolute; left: 160px; top: 12px; width: 114px; height: 26px; border-radius: 13px; background: color-mix(in srgb, var(--bg) 55%, black); }
+      .b-chat .msgs { position: absolute; left: 0; right: 0; top: 124px; padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
+      .b-chat .m { max-width: 84%; font-size: 27px; line-height: 1.3; padding: 12px 16px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--edge); align-self: flex-start; }
+      .b-chat .m.me { align-self: flex-end; background: var(--accent); border-color: transparent; }
+      .b-chat .m .mark { background: none; padding: 0; font-weight: 800; box-shadow: inset 0 -6px 0 var(--accent-hi); }
+      .b-chat .inp { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; background: var(--panel); border-top: 2px solid var(--edge); }
+
+      .b-cmp { display: flex; gap: 36px; align-items: stretch; position: relative; }
+      .b-cmp .c { width: 440px; min-height: 520px; padding: 40px 36px; background: var(--panel); border: 2px solid var(--edge); display: flex; flex-direction: column; }
+      .b-cmp .c.r { background: var(--accent); border-color: var(--accent-hi); }
+      .b-cmp .c.r .lbl { color: var(--text); }
+      .b-cmp .c.r .lbl::before { background: var(--text); }
+      .b-cmp .txt { margin-top: auto; font-size: 50px; line-height: 1.12; font-weight: 800; }
+      .b-cmp .c.l .txt { color: var(--muted); }
+      .b-cmp .vs { position: absolute; left: 50%; top: 50%; width: 84px; height: 84px; margin: -42px 0 0 -42px; background: var(--text); color: var(--bg); font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+
+      .b-win .win { width: 900px; background: var(--panel); border: 2px solid var(--edge); position: relative; }
+      .b-win .bar { height: 70px; display: flex; align-items: center; gap: 12px; padding: 0 28px; border-bottom: 2px solid var(--edge); }
+      .b-win .dot { width: 14px; height: 14px; background: color-mix(in srgb, var(--text) 18%, var(--panel)); }
+      .b-win .dot:first-child { background: var(--accent-hi); }
+      .b-win .bar b { margin-left: 18px; font-size: 26px; letter-spacing: 3px; text-transform: uppercase; }
+      .b-win .files { display: flex; gap: 24px; padding: 40px 44px 48px; }
+      .b-win .f { width: 170px; text-align: center; font-size: 21px; color: var(--muted); }
+      .b-win .ic { width: 150px; height: 180px; margin: 0 auto 14px; background: var(--panel-2); border: 3px solid var(--edge); position: relative; }
+      .b-win .ic::after { content: ""; position: absolute; left: 28px; right: 28px; top: 40px; height: 10px; background: color-mix(in srgb, var(--text) 18%, var(--panel)); box-shadow: 0 28px 0 color-mix(in srgb, var(--text) 18%, var(--panel)), 0 56px 0 color-mix(in srgb, var(--text) 13%, var(--panel)); }
+      .b-win .cur { position: absolute; width: 44px; height: 44px; left: 0; top: 0; }
+
+      /* caption */
+      #caps { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
+      .ph { position: absolute; left: 40px; width: 1000px; top: 968px; text-align: center; white-space: nowrap; font-size: 48px; font-weight: 600; opacity: 0; }
+      .ph .w { opacity: 0.28; }
+      .ph .w.bold { font-weight: 800; text-transform: uppercase; box-shadow: inset 0 -8px 0 var(--accent-hi); }
+      .ph .w.serif { font-family: var(--font-accent); font-style: var(--accent-style); font-weight: 700; }
+      #caps.full .ph { top: 1120px; color: var(--overlay-text); font-size: 60px; text-shadow: 0 3px 16px rgba(0, 0, 0, 0.7); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="__DURATION__" data-fps="__FPS__" data-width="1080" data-height="1920">
+      <div id="grid"></div>
+      <div id="vig"></div>
+      <div id="nodes"></div>
+      <div id="stage"></div>
+      <div id="vw">
+        <video id="clip" src="__VIDEO__" muted playsinline data-start="0" data-duration="__DURATION__" data-track-index="1"></video>
+      </div>
+      <svg id="hud" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48.5" fill="none" style="stroke: var(--accent-hi)" stroke-width="0.9" stroke-dasharray="1.2 2.6"/><path d="M50 0.8 A49.2 49.2 0 0 1 99.2 50" fill="none" style="stroke: var(--text)" stroke-width="1.1"/></svg>
+      <audio id="voice" src="__VIDEO__" data-start="0" data-duration="__DURATION__" data-track-index="10" data-volume="1"></audio>
+      <div id="caps"></div>
+    </div>
+    <script>
+      // theme colours for GSAP tweens: brand/theme.css tokens resolved to #rrggbb / rgba()
+      var TOK = (function () {
+        var cs = getComputedStyle(document.documentElement), c = document.createElement("canvas").getContext("2d");
+        return function (name) { c.fillStyle = "#000"; c.fillStyle = cs.getPropertyValue(name).trim(); return c.fillStyle; };
+      })();
+      var MIX = function (a, b, t) {  // a*t + b*(1-t) for two #rrggbb colours
+        var p = function (h, i) { return parseInt(h.slice(1 + i * 2, 3 + i * 2), 16); };
+        return "rgb(" + [0, 1, 2].map(function (i) { return Math.round(p(a, i) * t + p(b, i) * (1 - t)); }).join(",") + ")";
+      };
+      (function () {
+        var V = window.__hyperframes.getVariables();
+        var D = parseFloat(document.getElementById("root").getAttribute("data-duration"));
+        var FPS = parseFloat(document.getElementById("root").getAttribute("data-fps")) || 30;
+        var W = 1080, H = 1920;
+        var q = function (t) { return Math.round(t * FPS) / FPS; };
+        var el = function (tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+        var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+        // *word* -> red marker, _word_ -> serif italic
+        var rich = function (s) { return esc(s).replace(/\*([^*]+)\*/g, '<span class="mark">$1</span>').replace(/_([^_]+)_/g, '<span class="ser">$1</span>'); };
+        var norm = function (w) { return w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ""); };
+        // every word of an element's text -> <span class="w"> (inside marks too), for per-word motion
+        var wrapWords = function (root) {
+          var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), ns = [];
+          while (w.nextNode()) ns.push(w.currentNode);
+          ns.forEach(function (n) {
+            var frag = document.createDocumentFragment();
+            n.textContent.split(/(\s+)/).forEach(function (x) {
+              if (!x) return;
+              if (/^\s+$/.test(x)) { frag.appendChild(document.createTextNode(x)); return; }
+              var sp = el("span", "w"); sp.textContent = x; frag.appendChild(sp);
+            });
+            n.parentNode.replaceChild(frag, n);
+          });
+          return root;
+        };
+        var seed = 7; var rnd = function () { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+
+        function build() {
+          var tl = gsap.timeline({ paused: true });
+
+          // ---- background: slow grid drift + crosshairs and red squares on intersections
+          tl.fromTo("#grid", { x: 0, y: 0 }, { x: 60, y: -120, duration: D, ease: "none" }, 0);
+          var nodes = document.getElementById("nodes");
+          for (var i = 0; i < 12; i++) {
+            var n = el("div", i % 4 === 0 ? "node r" : "node");
+            n.style.left = (Math.floor(rnd() * 9) * 120 - 13) + "px";
+            n.style.top = (Math.floor(rnd() * 16) * 120 - 13) + "px";
+            nodes.appendChild(n);
+          }
+          tl.fromTo("#nodes", { x: 0, y: 0 }, { x: 60, y: -120, duration: D, ease: "none" }, 0);
+
+          // ---- speaker: full <-> circle
+          var src = V.src || { w: W, h: H };
+          var k0 = Math.max(W / src.w, H / src.h);
+          var fullVid = { left: (W - src.w * k0) / 2, top: (H - src.h * k0) / 2, width: src.w * k0, height: src.h * k0 };
+          var fullWrap = { left: 0, top: 0, width: W, height: H, borderRadius: 0,
+            boxShadow: "0 0 0 0px " + TOK("--text") + ", 0 24px 60px rgba(0,0,0,0)" };
+          var d = 430, cx = 540, cy = 1275;
+          var f = V.face || { x: src.w * 0.3, y: src.h * 0.25, w: src.w * 0.4, h: src.w * 0.4 };
+          var k1 = Math.max(d * 0.46 / f.w, d / Math.min(src.w, src.h));
+          var clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
+          var pipVid = { width: src.w * k1, height: src.h * k1,
+            left: clamp(d / 2 - k1 * (f.x + f.w / 2), d - src.w * k1, 0),
+            top: clamp(d * 0.46 - k1 * (f.y + f.h / 2), d - src.h * k1, 0) };
+          var pipWrap = { left: cx - d / 2, top: cy - d / 2, width: d, height: d, borderRadius: d / 2,
+            boxShadow: "0 0 0 4px " + TOK("--text") + ", 0 24px 60px rgba(0,0,0,0.6)" };
+          // HUD ring around the circle: dashed accent + a text-colour arc, slowly turning
+          var hd = d + 64;
+          gsap.set("#hud", { left: cx - hd / 2, top: cy - hd / 2, width: hd, height: hd, opacity: 0 });
+          tl.fromTo("#hud", { rotation: 0 }, { rotation: D * 10, duration: D, ease: "none" }, 0);
+          var pips = (V.pip || []).slice().sort(function (a, b) { return a.start - b.start; });
+          var inPip = pips.length && pips[0].start <= 0.05;
+          gsap.set("#vw", inPip ? pipWrap : fullWrap);
+          gsap.set("#clip", inPip ? pipVid : fullVid);
+          if (inPip) gsap.set("#hud", { opacity: 1 });
+          var caps = document.getElementById("caps");
+          caps.className = inPip ? "" : "full";
+          var T = 0.5;
+          pips.forEach(function (p) {
+            if (p.start > 0.05) {
+              var t = q(p.start);
+              tl.to("#vw", Object.assign({ duration: T, ease: "power3.inOut" }, pipWrap), t);
+              tl.to("#clip", Object.assign({ duration: T, ease: "power3.inOut" }, pipVid), t);
+              tl.set("#caps", { className: "" }, t + T / 2);
+              tl.to("#hud", { opacity: 1, duration: 0.3, ease: "power2.out" }, t + T);
+            }
+            if (p.end < D - 0.05) {
+              var e = q(p.end - T);
+              tl.to("#vw", Object.assign({ duration: T, ease: "power3.inOut" }, fullWrap), e);
+              tl.to("#clip", Object.assign({ duration: T, ease: "power3.inOut" }, fullVid), e);
+              tl.set("#caps", { className: "full" }, e + T / 2);
+              tl.to("#hud", { opacity: 0, duration: 0.15, ease: "power2.in" }, e - 0.15);
+            }
+          });
+
+          // ---- stage beats
+          var stage = document.getElementById("stage");
+          (V.beats || []).forEach(function (b, bi) {
+            var mk = KINDS[b.kind];
+            if (!mk) return;
+            var box = el("div", "beat");
+            stage.appendChild(box);
+            var t0 = q(b.start), t1 = q(b.end), dur = t1 - t0;
+            var inner = mk.html(b, "beat-" + bi);
+            box.appendChild(inner);
+            tl.fromTo(box, { opacity: 0, y: 50, scale: 0.94 }, { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "back.out(1.6)" }, t0);
+            tl.to(box, { y: -14, duration: Math.max(0.1, dur - 0.65), ease: "none" }, t0 + 0.4);
+            tl.to(box, { opacity: 0, scale: 0.96, duration: 0.25, ease: "power2.in" }, t1 - 0.25);
+            if (mk.anim) mk.anim(tl, inner, t0, dur, b);
+          });
+
+          // ---- caption: one phrase at a time, words light up as spoken
+          if (V.caption !== false) {
+            var words = V.words || [], emph = V.emph || {}, groups = [], cur = [];
+            words.forEach(function (w) {
+              var last = cur[cur.length - 1];
+              var len = cur.reduce(function (a, x) { return a + x.w.length + 1; }, 0);
+              if (last && (cur.length >= 5 || len + w.w.length > 28 || w.s - last.e > 0.45 || /[.!?…]$/.test(last.w))) { groups.push(cur); cur = []; }
+              cur.push(w);
+            });
+            if (cur.length) groups.push(cur);
+            groups.forEach(function (g, gi) {
+              var ph = el("div", "ph");
+              g.forEach(function (w, wi) {
+                var sp = el("span", "w " + (emph[norm(w.w)] || ""));
+                sp.textContent = w.w.replace(/[,.;:]$/, "");
+                ph.appendChild(sp);
+                if (wi < g.length - 1) ph.appendChild(document.createTextNode(" "));
+                tl.to(sp, { opacity: 1, duration: 0.08, ease: "none" }, q(w.s));
+              });
+              caps.appendChild(ph);
+              var s = q(Math.max(0, g[0].s - 0.05));
+              var next = groups[gi + 1];
+              var e = q(Math.min(D, next ? next[0].s - 0.05 : g[g.length - 1].e + 0.6, g[g.length - 1].e + 1.2));
+              tl.fromTo(ph, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.14, ease: "power2.out" }, s);
+              tl.set(ph, { opacity: 0 }, Math.max(s + 0.15, e));
+            });
+            // phrases wider than the frame shrink to fit (fonts are loaded here)
+            Array.prototype.forEach.call(caps.children, function (ph) {
+              if (ph.scrollWidth > 1000) ph.style.fontSize = Math.floor(48 * 1000 / ph.scrollWidth) + "px";
+            });
+          }
+
+          tl.to({}, { duration: 0 }, D);
+          window.__timelines["main"] = tl;
+        }
+
+        // ---- BUILD: stage kinds. Text fields accept *marker* and _serif_.
+        var KINDS = {
+          // custom graphic from composition.json: {html, css?, anim: [{sel, at, dur?, from?, to?, ease?, stagger?}]}
+          // html is sanitized by vid compose (no scripts/handlers/remote URLs), icons already inlined;
+          // css is nested under this beat's id; anim "at" is absolute seconds on the cut timeline
+          custom: {
+            html: function (b, id) {
+              var d = el("div", "b-custom", b.html);
+              d.id = id;
+              if (b.css) d.insertBefore(el("style", null, "#" + id + " { " + b.css + " }"), d.firstChild);
+              return d;
+            },
+            anim: function (tl, d, t0, dur, b) {
+              (b.anim || []).forEach(function (a) {
+                var els = a.sel ? d.querySelectorAll(a.sel) : [d];
+                if (!els.length) return;
+                var at = q(a.at != null ? a.at : t0);
+                // "var(--accent)" in a tween value -> the theme colour (GSAP cannot tween var())
+                var themed = function (o) {
+                  var r = {};
+                  Object.keys(o || {}).forEach(function (k) {
+                    var v = o[k];
+                    r[k] = typeof v === "string" ? v.replace(/var\((--[\w-]+)\)/g, function (m, n) { return TOK(n); }) : v;
+                  });
+                  return r;
+                };
+                if (a.from) a = Object.assign({}, a, { from: themed(a.from) });
+                var to = Object.assign({ duration: a.dur != null ? a.dur : 0.4, ease: a.ease || "power3.out" }, themed(a.to));
+                if (a.stagger) to.stagger = a.stagger;
+                // a prop given only in `from` animates back to the element's own CSS value
+                // (read now, before fromTo applies the from-state), so "from: {opacity: 0}" alone reveals
+                if (a.from) Object.keys(a.from).forEach(function (k) {
+                  if (!(k in to)) to[k] = gsap.getProperty(els[0], k);
+                });
+                if (a.from) tl.fromTo(els, a.from, to, at); else tl.to(els, to, at);
+              });
+            },
+          },
+          // {text, sub?}
+          title: {
+            html: function (b) {
+              var d = el("div", "b-title");
+              if (b.icon_svg) d.appendChild(el("div", "icon lg accent b-icon", b.icon_svg));
+              d.appendChild(wrapWords(el("h1", null, rich(b.text))));
+              if (b.sub) d.appendChild(el("p", null, rich(b.sub)));
+              return d;
+            },
+            anim: function (tl, d, t0) {
+              tl.from(d.querySelectorAll("h1 .w"), { opacity: 0, y: 30, duration: 0.35, stagger: 0.07, ease: "power3.out" }, t0 + 0.1);
+              tl.fromTo(d.querySelectorAll(".mark"), { backgroundSize: "0% 100%" }, { backgroundSize: "100% 100%", duration: 0.4, ease: "power2.out" }, t0 + 0.45);
+            },
+          },
+          // {value, from?, prefix?, suffix?, label?, decimals?}
+          number: {
+            html: function (b) {
+              var d = el("div", "b-num");
+              if (b.icon_svg) d.appendChild(el("div", "icon lg accent b-icon", b.icon_svg));
+              d.appendChild(el("div", "val", esc(b.prefix || "") + '<span class="n">' + (b.from || 0) + "</span>" + esc(b.suffix || "")));
+              d.appendChild(el("div", "bar"));
+              if (b.label) d.appendChild(el("div", "lab", rich(b.label)));
+              return d;
+            },
+            anim: function (tl, d, t0, dur, b) {
+              var o = { v: b.from || 0 }, n = d.querySelector(".n"), dec = b.decimals || 0;
+              tl.to(o, { v: Number(b.value), duration: Math.min(1.2, dur * 0.5), ease: "power2.out",
+                onUpdate: function () { n.textContent = Number(o.v).toFixed(dec).replace(/\B(?=(\d{3})+(?!\d))/g, " "); } }, t0 + 0.2);
+              tl.to(d.querySelector(".bar"), { width: 360, duration: 0.5, ease: "power2.out" }, t0 + 0.3);
+            },
+          },
+          // {title?, items: [..]}
+          list: {
+            html: function (b) {
+              var d = el("div", "b-list shadow tk");
+              if (b.title) d.appendChild(el("h2", "lbl", rich(b.title)));
+              (b.items || []).slice(0, 5).forEach(function (x) {
+                var it = el("div", "it");
+                it.appendChild(el("div", "ck", '<svg width="30" height="30" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" style="stroke: var(--text)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
+                it.appendChild(el("div", null, rich(x)));
+                d.appendChild(it);
+              });
+              return d;
+            },
+            anim: function (tl, d, t0, dur) {
+              var its = d.querySelectorAll(".it");
+              var step = Math.min(0.6, (dur * 0.6) / Math.max(1, its.length));
+              tl.from(its, { opacity: 0, x: -40, duration: 0.3, stagger: step, ease: "power2.out" }, t0 + 0.25);
+            },
+          },
+          // {title?, messages: [{from: "me"|"them", text}]}
+          chat: {
+            html: function (b) {
+              var d = el("div", "b-chat");
+              var ph = el("div", "phone shadow tk");
+              var top = el("div", "top"); top.appendChild(el("b", null, esc(b.title || "Чат"))); top.appendChild(el("span", null, "bot"));
+              ph.appendChild(top); ph.appendChild(el("div", "notch"));
+              var ms = el("div", "msgs");
+              (b.messages || []).slice(-5).forEach(function (m) { ms.appendChild(el("div", "m" + (m.from === "me" ? " me" : ""), rich(m.text))); });
+              ph.appendChild(ms); ph.appendChild(el("div", "inp"));
+              d.appendChild(ph);
+              return d;
+            },
+            anim: function (tl, d, t0, dur) {
+              var ms = d.querySelectorAll(".m");
+              var step = Math.min(0.8, (dur * 0.65) / Math.max(1, ms.length));
+              tl.from(ms, { opacity: 0, y: 24, scale: 0.9, transformOrigin: "50% 100%", duration: 0.3, stagger: step, ease: "back.out(1.7)" }, t0 + 0.3);
+            },
+          },
+          // {left: {label, text}, right: {label, text}}
+          compare: {
+            html: function (b) {
+              var d = el("div", "b-cmp");
+              [["c l shadow tk", b.left || {}], ["c r shadow", b.right || {}]].forEach(function (x) {
+                var c = el("div", x[0]); c.appendChild(el("div", "lbl", esc(x[1].label || ""))); c.appendChild(el("div", "txt", rich(x[1].text || ""))); d.appendChild(c);
+              });
+              d.appendChild(el("div", "vs", "VS"));
+              return d;
+            },
+            anim: function (tl, d, t0, dur) {
+              tl.from(d.querySelector(".r"), { opacity: 0, x: 80, duration: 0.4, ease: "power3.out" }, t0 + Math.min(0.9, dur * 0.35));
+              tl.from(d.querySelector(".vs"), { opacity: 0, scale: 0.4, duration: 0.3, ease: "back.out(2)" }, t0 + Math.min(1.1, dur * 0.45));
+            },
+          },
+          // {title, items: [names], pick?: index clicked by the cursor}
+          window: {
+            html: function (b) {
+              var d = el("div", "b-win");
+              var w = el("div", "win shadow tk");
+              var bar = el("div", "bar"); bar.innerHTML = '<i class="dot"></i><i class="dot"></i><i class="dot"></i><b>' + esc(b.title || "") + "</b>";
+              w.appendChild(bar);
+              var fs = el("div", "files");
+              (b.items || []).slice(0, 4).forEach(function (x) { var f = el("div", "f"); f.appendChild(el("div", "ic")); f.appendChild(el("div", null, esc(x))); fs.appendChild(f); });
+              w.appendChild(fs);
+              w.appendChild(el("div", "cur", '<svg width="44" height="44" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.6L9.6 19z" style="fill: var(--text); stroke: var(--bg)" stroke-width="1.4" stroke-linejoin="round"/></svg>'));
+              d.appendChild(w);
+              return d;
+            },
+            anim: function (tl, d, t0, dur, b) {
+              var ics = d.querySelectorAll(".ic"), cur = d.querySelector(".cur");
+              tl.from(d.querySelectorAll(".f"), { opacity: 0, y: 20, duration: 0.3, stagger: 0.08, ease: "power2.out" }, t0 + 0.25);
+              var i = Math.min(ics.length - 1, b.pick || 0);
+              if (i < 0) return;
+              var x = 44 + i * 194 + 100, y = 70 + 40 + 120;  // tile i centre: padding + i * (170 + 24)
+              var tc = t0 + Math.min(1.0, dur * 0.45);
+              tl.fromTo(cur, { x: 820, y: 420 }, { x: x, y: y, duration: 0.6, ease: "power2.inOut" }, tc - 0.6);
+              tl.to(cur, { scale: 0.8, duration: 0.08, yoyo: true, repeat: 1 }, tc);
+              tl.to(ics[i], { borderColor: TOK("--accent-hi"), backgroundColor: MIX(TOK("--accent"), TOK("--panel"), 0.25), scale: 1.06, duration: 0.2, ease: "power2.out" }, tc + 0.05);
+            },
+          },
+        };
+
+        document.fonts.ready.then(build);
+      })();
+    </script>
+  </body>
+</html>

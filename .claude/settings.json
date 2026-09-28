@@ -1,0 +1,32 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/tools/check-env.sh\""
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(tools/vid:*)",
+      "Bash(./tools/vid:*)",
+      "Bash(bash tools/check-env.sh)",
+      "Bash(bash install.sh --user-only)",
+      "Bash(python3 carousels/:*)",
+      "Bash(python3 examples/:*)",
+      "Bash(ffprobe:*)",
+      "Bash(explorer.exe:*)",
+      "Bash(wslpath:*)",
+      "Bash(open videos/:*)",
+      "Bash(open carousels/:*)",
+      "Bash(open brand/:*)",
+      "WebSearch",
+      "WebFetch"
+    ]
+  }
+}

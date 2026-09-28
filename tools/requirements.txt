@@ -1,0 +1,5 @@
+ctranslate2==4.8.2
+faster-whisper==1.2.1
+numpy==2.5.3
+opencv-python-headless==5.0.0.93
+onnx-asr==0.12.0

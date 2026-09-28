@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Run vid.py inside the video venv (see setup.sh).
+here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+exec "$here/.venv/bin/python" "$here/vid.py" "$@"

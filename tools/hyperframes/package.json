@@ -1,0 +1,8 @@
+{
+  "name": "video-context-cards",
+  "private": true,
+  "devDependencies": {
+    "hyperframes": "0.8.80",
+    "lucide-static": "^1.48.0"
+  }
+}

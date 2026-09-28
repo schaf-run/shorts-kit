@@ -1,0 +1,20 @@
+{
+ "next": "листай",
+ "ratio": "4:5",
+ "slides": [
+  {
+   "html": "<div class=\"lbl\">Съёмка · 3 правила</div><div class=\"h1\">Снимите так, чтобы монтаж занял <span class=\"mark\">минуты</span></div><div class=\"body muted\">Три настройки до нажатия «запись», которые экономят час на монтаже.</div>"
+  },
+  {
+   "html": "<div class=\"lbl\">1 · Кадр</div><div class=\"h2\">Отойдите на шаг: <span class=\"ser\">место под субтитры</span></div><svg viewBox=\"0 0 920 720\" width=\"920\" height=\"720\"><rect class=\"frame\" x=\"40\" y=\"0\" width=\"360\" height=\"640\"/><rect class=\"head\" x=\"12.0\" y=\"470\" width=\"416.0\" height=\"170\"/><circle class=\"head\" cx=\"220\" cy=\"330\" r=\"130\"/><rect class=\"zone\" x=\"70\" y=\"420\" width=\"300\" height=\"60\"/><text class=\"mid b8\" x=\"220\" y=\"460\">СУБТИТРЫ</text><text class=\"mid ac b8\" x=\"220\" y=\"700\">ТЕКСТ НА ЛИЦЕ</text><rect class=\"frame\" x=\"520\" y=\"0\" width=\"360\" height=\"640\"/><rect class=\"head\" x=\"588.0\" y=\"250\" width=\"224.0\" height=\"390\"/><circle class=\"head\" cx=\"700\" cy=\"170\" r=\"70\"/><rect class=\"zone\" x=\"550\" y=\"420\" width=\"300\" height=\"60\"/><text class=\"mid b8\" x=\"700\" y=\"460\">СУБТИТРЫ</text><text class=\"mid mu b8\" x=\"700\" y=\"700\">ЛИЦО ОТКРЫТО</text></svg>",
+   "css": "\nsvg { display: block; overflow: visible; }\nsvg text { font-family: var(--font-sans); fill: var(--text); font-weight: 600; font-size: 28px; }\nsvg .mu { fill: var(--muted); } svg .ac { fill: var(--accent-hi); } svg .b8 { font-weight: 800; }\nsvg .mid { text-anchor: middle; }\nsvg .frame { fill: var(--panel); stroke: var(--edge); stroke-width: 3; }\nsvg .zone { fill: var(--accent); opacity: 0.85; }\nsvg .head { fill: var(--panel-2); stroke: var(--text); stroke-width: 3; }\nsvg .dash { stroke: var(--accent-hi); stroke-width: 3; stroke-dasharray: 12 10; fill: none; }\n"
+  },
+  {
+   "html": "<div class=\"lbl\">2 · Звук</div><div class=\"h2\">Звук важнее картинки</div><div class=\"col\"><div class=\"card row\"><i data-icon=\"mic\" class=\"accent\"></i><div><div class=\"body\">Петличка или телефон ближе</div><div class=\"small\">чем ближе микрофон, тем меньше эха</div></div></div><div class=\"card row\"><i data-icon=\"volume-x\" class=\"accent\"></i><div><div class=\"body\">Тихая комната</div><div class=\"small\">шум сложнее всего убрать потом</div></div></div><div class=\"card hot row\"><i data-icon=\"scissors\"></i><div><div class=\"body\">Ошиблись — повторите фразу целиком</div><div class=\"small\" style=\"color: var(--text)\">монтаж найдёт дубль и вырежет лишнее</div></div></div></div>"
+  },
+  {
+   "html": "<div class=\"lbl\">Итог</div><div class=\"h2\">Перед записью проверьте</div><div class=\"row\" style=\"flex-wrap: wrap\"><span class=\"chip\">9:16, вертикально</span><span class=\"chip\">голова в верхней трети</span><span class=\"chip\">микрофон близко</span><span class=\"chip hot\">ошибка → повтор фразы</span></div><div class=\"body muted\">Сохраните, чтобы не забыть перед следующей съёмкой.</div>",
+   "chrome": true
+  }
+ ]
+}

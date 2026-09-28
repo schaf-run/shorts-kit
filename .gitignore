@@ -1,0 +1,12 @@
+__pycache__/
+tools/.venv/
+tools/models/
+tools/hyperframes/node_modules/
+tools/hyperframes/.tmp/
+tools/hyperframes/assets/brand/
+# работа пользователя: исходники и готовые ролики в git не кладём
+videos/*
+!videos/.gitkeep
+carousels/*/out/
+brand/preview/carousel/
+brand/preview/video/

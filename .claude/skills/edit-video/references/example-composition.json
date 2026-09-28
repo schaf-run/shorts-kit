@@ -1,0 +1,269 @@
+{
+ "template": "visuals",
+ "pip": [
+  {
+   "start": 1.2,
+   "end": 17.55
+  }
+ ],
+ "caption": true,
+ "emph": {
+  "Claude": "bold",
+  "монтировать": "serif",
+  "анимацию": "bold",
+  "субтитры": "bold",
+  "паузы": "serif",
+  "правок": "bold"
+ },
+ "fix": {
+  "Клода": "Claude"
+ },
+ "beats": [
+  {
+   "start": 1.6,
+   "end": 4.1,
+   "kind": "custom",
+   "html": "<div class=\"lbl\">кто монтирует</div>\n<div class=\"seat card tk\">\n  <div class=\"who human col center\"><i data-icon=\"user\" class=\"lg\"></i><div class=\"strike\"></div></div>\n  <div class=\"who ai col center\"><i data-icon=\"bot-message-square\" class=\"lg accent\"></i><div class=\"h2\">Claude</div></div>\n</div>\n<div class=\"row tools\"><span class=\"chip c1\"><i data-icon=\"scissors\" class=\"sm\"></i>монтаж</span><span class=\"chip hot c2\"><i data-icon=\"clapperboard\" class=\"sm\"></i>ролики</span></div>",
+   "css": ".seat{position:relative;width:520px;height:400px;margin:28px 0 36px;padding:0}\n.who{position:absolute;inset:0;gap:18px}\n.strike{position:absolute;left:90px;top:196px;height:10px;width:340px;background:var(--accent-hi)}\n.tools{gap:24px}.chip{font-size:34px}",
+   "anim": [
+    {
+     "sel": ".strike",
+     "at": 1.9,
+     "dur": 0.25,
+     "from": {
+      "width": 0
+     }
+    },
+    {
+     "sel": ".human",
+     "at": 2.1,
+     "dur": 0.3,
+     "to": {
+      "opacity": 0,
+      "y": -60
+     }
+    },
+    {
+     "sel": ".ai",
+     "at": 2.0,
+     "dur": 0.4,
+     "from": {
+      "opacity": 0,
+      "y": 60
+     }
+    },
+    {
+     "sel": ".c1",
+     "at": 2.4,
+     "from": {
+      "opacity": 0,
+      "y": 30
+     }
+    },
+    {
+     "sel": ".c2",
+     "at": 2.9,
+     "from": {
+      "opacity": 0,
+      "y": 30
+     }
+    }
+   ]
+  },
+  {
+   "start": 4.3,
+   "end": 9.45,
+   "kind": "custom",
+   "html": "<div class=\"row wrap\">\n <div class=\"phone\">\n   <div class=\"scr\"></div>\n   <div class=\"spark center\"><i data-icon=\"sparkles\" class=\"lg accent\"></i></div>\n   <div class=\"sub\"></div>\n   <div class=\"tl\"><div class=\"seg\"></div><div class=\"seg\"></div><div class=\"seg\"></div></div>\n </div>\n <div class=\"col items\">\n   <div class=\"chip i1\"><i data-icon=\"wand-sparkles\" class=\"sm\"></i>анимация</div>\n   <div class=\"chip i2\"><i data-icon=\"type\" class=\"sm\"></i>субтитры</div>\n   <div class=\"chip hot i3\"><i data-icon=\"scissors\" class=\"sm\"></i>нарезка</div>\n </div></div>",
+   "css": ".wrap{gap:64px;align-items:center}\n.phone{position:relative;width:340px;height:640px;border:6px solid var(--edge);background:var(--panel)}\n.scr{position:absolute;inset:0;background:var(--panel-2)}\n.spark{position:absolute;left:0;right:0;top:160px}\n.sub{position:absolute;left:40px;bottom:130px;height:34px;width:250px;background:var(--text)}\n.tl{position:absolute;left:20px;right:20px;bottom:40px;height:44px;display:flex;gap:10px}\n.seg{flex:1;background:var(--muted)}\n.items{gap:28px;align-items:flex-start}.chip{font-size:40px;padding:16px 24px}",
+   "anim": [
+    {
+     "sel": ".phone",
+     "at": 4.45,
+     "dur": 0.4,
+     "from": {
+      "opacity": 0,
+      "scale": 0.9
+     }
+    },
+    {
+     "sel": ".spark",
+     "at": 6.14,
+     "dur": 0.45,
+     "from": {
+      "opacity": 0,
+      "scale": 0.3,
+      "rotation": -30
+     },
+     "ease": "back.out(2)"
+    },
+    {
+     "sel": ".i1",
+     "at": 6.14,
+     "from": {
+      "opacity": 0,
+      "x": 40
+     }
+    },
+    {
+     "sel": ".sub",
+     "at": 7.38,
+     "dur": 0.35,
+     "from": {
+      "width": 0
+     }
+    },
+    {
+     "sel": ".i2",
+     "at": 7.38,
+     "from": {
+      "opacity": 0,
+      "x": 40
+     }
+    },
+    {
+     "sel": ".tl",
+     "at": 4.6,
+     "dur": 0.3,
+     "from": {
+      "opacity": 0
+     }
+    },
+    {
+     "sel": ".seg",
+     "at": 8.46,
+     "dur": 0.3,
+     "to": {
+      "backgroundColor": "var(--accent-hi)"
+     },
+     "stagger": 0.08
+    },
+    {
+     "sel": ".i3",
+     "at": 8.46,
+     "from": {
+      "opacity": 0,
+      "x": 40
+     }
+    }
+   ]
+  },
+  {
+   "start": 9.55,
+   "end": 13.7,
+   "kind": "custom",
+   "html": "<div class=\"lbl\">таймлайн</div>\n<div class=\"knife\"><i data-icon=\"scissors\" class=\"lg accent\"></i></div>\n<div class=\"track\">\n <div class=\"s\"></div><div class=\"p\"></div><div class=\"s\"></div><div class=\"p\"></div><div class=\"s\"></div><div class=\"p\"></div><div class=\"s\"></div>\n</div>\n<div class=\"legend row\"><span class=\"small muted\">речь</span><span class=\"small accent pl\">паузы</span></div>",
+   "css": ".knife{margin:10px 0 6px}\n.track{display:flex;align-items:center;height:150px;width:940px;justify-content:center}\n.s{width:170px;height:150px;background:var(--text);border:2px solid var(--edge)}\n.p{width:90px;height:150px;background:var(--panel-2);border:2px dashed var(--muted)}\n.legend{gap:60px;margin-top:30px;font-size:30px}",
+   "anim": [
+    {
+     "sel": ".s",
+     "at": 9.95,
+     "dur": 0.35,
+     "from": {
+      "opacity": 0,
+      "y": 40
+     },
+     "stagger": 0.08
+    },
+    {
+     "sel": ".p",
+     "at": 10.1,
+     "dur": 0.35,
+     "from": {
+      "opacity": 0
+     },
+     "stagger": 0.08
+    },
+    {
+     "sel": ".knife",
+     "at": 10.5,
+     "dur": 0.4,
+     "from": {
+      "opacity": 0,
+      "y": -50
+     }
+    },
+    {
+     "sel": ".p",
+     "at": 12.62,
+     "dur": 0.3,
+     "to": {
+      "backgroundColor": "var(--accent)",
+      "borderColor": "var(--accent-hi)"
+     }
+    },
+    {
+     "sel": ".pl",
+     "at": 12.62,
+     "from": {
+      "opacity": 0
+     }
+    },
+    {
+     "sel": ".p",
+     "at": 13.1,
+     "dur": 0.45,
+     "to": {
+      "width": 0,
+      "borderWidth": 0
+     },
+     "ease": "power2.inOut"
+    }
+   ]
+  },
+  {
+   "start": 13.8,
+   "end": 17.15,
+   "kind": "custom",
+   "html": "<div class=\"card tk file col\">\n <div class=\"row top\"><i data-icon=\"clapperboard\" class=\"icon\"></i><div class=\"h2\">ролик</div><i data-icon=\"circle-check\" class=\"ok icon accent\"></i></div>\n <div class=\"bar\"><div class=\"fill\"></div></div>\n</div>\n<div class=\"row edits\"><div class=\"body\">правок:</div><div class=\"zero h1 accent\">0</div><div class=\"body ser muted w\">желательно</div></div>",
+   "css": ".file{width:760px;gap:34px;padding:44px 48px}\n.top{gap:28px;align-items:center}.ok{margin-left:auto}\n.bar{height:26px;background:var(--panel-2);border:2px solid var(--edge)}\n.fill{height:100%;width:100%;background:var(--accent-hi)}\n.edits{gap:30px;align-items:baseline;margin-top:60px}.zero{font-size:120px}",
+   "anim": [
+    {
+     "sel": ".fill",
+     "at": 14.2,
+     "dur": 1.4,
+     "from": {
+      "width": 0
+     },
+     "ease": "power1.inOut"
+    },
+    {
+     "sel": ".ok",
+     "at": 15.55,
+     "dur": 0.4,
+     "from": {
+      "opacity": 0,
+      "scale": 0.3
+     },
+     "ease": "back.out(2)"
+    },
+    {
+     "sel": ".edits",
+     "at": 16.1,
+     "dur": 0.35,
+     "from": {
+      "opacity": 0,
+      "y": 30
+     }
+    },
+    {
+     "sel": ".w",
+     "at": 16.19,
+     "dur": 0.35,
+     "from": {
+      "opacity": 0
+     }
+    },
+    {
+     "sel": ".zero",
+     "at": 16.75,
+     "dur": 0.4,
+     "from": {
+      "opacity": 0,
+      "scale": 2.2
+     }
+    }
+   ]
+  }
+ ]
+}

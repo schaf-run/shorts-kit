@@ -1,0 +1,124 @@
+<!doctype html>
+<!--
+  Carousel: static slides (Instagram / Threads carousel) in the brand style
+  (brand/theme.css: colours and fonts, injected at the THEME marker; grid bg, sharp edges).
+  Each slide is 1 s on the timeline; vid carousel snapshots every slide at i + 0.5 s into a PNG.
+
+  Rendered by vid.py `carousel`: it copies this file into WORK/.hf/index.html and
+  replaces __W__ / __H__ / __DURATION__ / __DATA__ (JSON):
+    handle  "@name"            brand line top-left on every slide ("" = none)
+    slides  [{html, css, chrome}]   html sanitized by vid (icons inlined); css nested under
+                                    the slide's id; chrome false hides handle/counter/arrow
+  The building-block classes must stay in sync with talking-head.html.
+-->
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      /*__THEME__*/
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
+        font-family: var(--font-sans); color: var(--text); }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+      #grid { position: absolute; inset: 0; pointer-events: none;
+        background-image: linear-gradient(var(--line) 2px, transparent 2px), linear-gradient(90deg, var(--line) 2px, transparent 2px);
+        background-size: 120px 120px; background-position: -1px -1px; }
+      #vig { position: absolute; inset: 0; pointer-events: none;
+        background: radial-gradient(ellipse 80% 60% at 50% 45%, transparent 40%, var(--vignette) 100%); }
+
+      /* slide: content box inside 80 px side / 140 px top-bottom margins (3:4 grid crop + chrome) */
+      .slide { position: absolute; inset: 0; opacity: 0; }
+      .node { position: absolute; width: 26px; height: 26px; }
+      .node::before, .node::after { content: ""; position: absolute; background: color-mix(in srgb, var(--text) 32%, transparent); }
+      .node::before { left: 12px; top: 0; width: 2px; height: 26px; }
+      .node::after { left: 0; top: 12px; width: 26px; height: 2px; }
+      .node.r::before, .node.r::after { background: none; }
+      .node.r { width: 12px; height: 12px; margin: 7px 0 0 7px; background: var(--accent); }
+      .box { position: absolute; left: 80px; right: 80px; top: 140px; bottom: 140px; overflow: hidden;
+        display: flex; flex-direction: column; justify-content: center; gap: 36px; }
+      .box.over { outline: 8px dashed var(--accent-hi); }
+      .hdl { position: absolute; left: 80px; top: 64px; }
+      .cnt { position: absolute; right: 80px; bottom: 62px; font-size: 26px; font-weight: 600; letter-spacing: 3px; color: var(--muted); }
+      .nxt { position: absolute; left: 80px; bottom: 56px; display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 800; letter-spacing: 5px; text-transform: uppercase; color: var(--text); }
+      .nxt i { display: block; width: 64px; height: 4px; background: var(--accent-hi); position: relative; }
+      .nxt i::after { content: ""; position: absolute; right: -2px; top: -8px; border: 10px solid transparent; border-left: 14px solid var(--accent-hi); border-right: 0; }
+
+      /* building blocks: same as talking-head.html, plus .display for cover headlines */
+      .shadow { box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55); }
+      .tk { position: relative; }
+      .tk::before, .tk::after { content: ""; position: absolute; width: 30px; height: 30px; border: 0 solid var(--accent-hi); }
+      .tk::before { left: -8px; top: -8px; border-left-width: 4px; border-top-width: 4px; }
+      .tk::after { right: -8px; bottom: -8px; border-right-width: 4px; border-bottom-width: 4px; }
+      .mark { background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 50% / 100% 100%; padding: 0 10px; }
+      .ser { font-family: var(--font-accent); font-style: var(--accent-style); font-weight: 700; }
+      .lbl { font-size: 26px; font-weight: 800; letter-spacing: 5px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 16px; }
+      .lbl::before { content: ""; width: 14px; height: 14px; background: var(--accent-hi); flex: 0 0 14px; }
+      .card { background: var(--panel); border: 2px solid var(--edge); padding: 36px 40px; }
+      .card.hot { background: var(--accent); border-color: var(--accent-hi); }
+      .chip { display: inline-flex; align-items: center; gap: 12px; padding: 10px 18px; background: var(--panel-2); border: 2px solid var(--edge); font-size: 28px; font-weight: 600; }
+      .chip.hot { background: var(--accent); border-color: var(--accent-hi); }
+      .display { font-size: 124px; line-height: 1.0; font-weight: 800; letter-spacing: -3px; text-transform: uppercase; }
+      .h1 { font-size: 96px; line-height: 1.05; font-weight: 800; letter-spacing: -2px; }
+      .h2 { font-size: 64px; line-height: 1.1; font-weight: 800; letter-spacing: -1px; }
+      .body { font-size: 40px; line-height: 1.3; font-weight: 600; }
+      .small { font-size: 28px; line-height: 1.35; color: var(--muted); }
+      .muted { color: var(--muted); } .accent { color: var(--accent-hi); }
+      .row { display: flex; align-items: center; gap: 24px; } .col { display: flex; flex-direction: column; gap: 20px; }
+      .center { display: flex; align-items: center; justify-content: center; text-align: center; }
+      .line { height: 2px; background: var(--edge); }
+      .icon { display: inline-flex; flex: none; width: 96px; height: 96px; color: var(--text); }
+      .icon svg { width: 100%; height: 100%; }
+      .icon.accent { color: var(--accent-hi); } .icon.sm { width: 56px; height: 56px; } .icon.lg { width: 180px; height: 180px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="__DURATION__" data-fps="30" data-width="__W__" data-height="__H__">
+      <div id="grid"></div>
+      <div id="vig"></div>
+      <div id="slides"></div>
+    </div>
+    <script>
+      (function () {
+        var DATA = __DATA__;
+        var el = function (tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+        var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+        var W = __W__, H = __H__, N = DATA.slides.length;
+        var seed = 7; var rnd = function () { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+        var tl = gsap.timeline({ paused: true });
+        var root = document.getElementById("slides");
+        DATA.slides.forEach(function (s, i) {
+          var sl = el("div", "slide");
+          sl.id = "s" + (i + 1);
+          // grid crosshairs and red squares, different on every slide
+          for (var k = 0; k < 7; k++) {
+            var n = el("div", k % 3 === 0 ? "node r" : "node");
+            n.style.left = (Math.floor(rnd() * Math.floor(W / 120)) * 120 + 107) + "px";
+            n.style.top = (Math.floor(rnd() * Math.floor(H / 120)) * 120 + 107) + "px";
+            sl.appendChild(n);
+          }
+          var box = el("div", "box", s.html);
+          if (s.css) box.insertBefore(el("style", null, "#s" + (i + 1) + " .box { " + s.css + " }"), box.firstChild);
+          sl.appendChild(box);
+          if (s.chrome !== false) {
+            if (DATA.handle) sl.appendChild(el("div", "lbl hdl", esc(DATA.handle)));
+            sl.appendChild(el("div", "cnt", String(i + 1).padStart(2, "0") + " / " + String(N).padStart(2, "0")));
+            if (i < N - 1) sl.appendChild(el("div", "nxt", esc(DATA.next || "") + "<i></i>"));
+          }
+          root.appendChild(sl);
+          tl.set(sl, { opacity: 1 }, i);
+          if (i < N - 1) tl.set(sl, { opacity: 0 }, i + 1);
+        });
+        tl.to({}, { duration: 0 }, N);
+        window.__timelines = window.__timelines || {};
+        window.__timelines["main"] = tl;
+        // content that does not fit its box: dashed red outline on the sheet (check reports container_overflow)
+        document.fonts.ready.then(function () {
+          Array.prototype.forEach.call(document.querySelectorAll(".box"), function (b) {
+            if (b.scrollHeight > b.clientHeight + 2 || b.scrollWidth > b.clientWidth + 2) b.classList.add("over");
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
