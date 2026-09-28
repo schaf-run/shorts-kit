@@ -39,4 +39,4 @@
 3. [Карусели](docs/03-carousels.md)
 4. [Свой стиль](docs/04-style.md)
 5. [Шаблоны видео](docs/05-templates.md)
-6. [Если что-то не работает](docs/06-problems.md)
+6. [Если что-то не работает и как всё удалить](docs/06-problems.md)
