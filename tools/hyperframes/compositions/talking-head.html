@@ -15,6 +15,11 @@
     caption  bool             show the caption line
     emph  {normword: "bold"|"serif"}  caption emphasis (bold caps / serif italic)
     beats [{start, end, kind, ...}]   stage visuals, see BUILD below for the fields per kind
+    layout "pip" (default) | "alternate"
+    visual [{start, end}]     layout "alternate": spans with no speaker - the grid and a tall stage
+                              (1000 x 1140) fill the frame, voice + the caption line below the stage;
+                              outside them the speaker is full screen; the caption sits at 1420 px
+                              in both parts (template "alternate")
 -->
 <html lang="ru">
   <head>
@@ -76,6 +81,9 @@
       .icon.accent { color: var(--accent-hi); } .icon.sm { width: 56px; height: 56px; } .icon.lg { width: 180px; height: 180px; }
       .b-icon { margin: 0 auto 26px; }
       .b-custom { position: relative; width: 1000px; height: 760px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      /* layout "alternate": the stage fills the frame between Reels' top and bottom UI */
+      #root.alt #stage { top: 220px; height: 1140px; }
+      #root.alt .b-custom { height: 1140px; }
 
       .b-title { width: 940px; text-align: center; }
       .b-title h1 { font-size: 104px; line-height: 1.08; font-weight: 800; letter-spacing: -2px; }
@@ -129,6 +137,8 @@
       .ph .w.bold { font-weight: 800; text-transform: uppercase; box-shadow: inset 0 -8px 0 var(--accent-hi); }
       .ph .w.serif { font-family: var(--font-accent); font-style: var(--accent-style); font-weight: 700; }
       #caps.full .ph { top: 1120px; color: var(--overlay-text); font-size: 60px; text-shadow: 0 3px 16px rgba(0, 0, 0, 0.7); }
+      /* layout "alternate": one caption spot for face and visual parts, below the face and the stage */
+      #root.alt #caps .ph { top: 1420px; font-size: 58px; }
     </style>
   </head>
   <body>
@@ -215,7 +225,10 @@
           var hd = d + 64;
           gsap.set("#hud", { left: cx - hd / 2, top: cy - hd / 2, width: hd, height: hd, opacity: 0 });
           tl.fromTo("#hud", { rotation: 0 }, { rotation: D * 10, duration: D, ease: "none" }, 0);
-          var pips = (V.pip || []).slice().sort(function (a, b) { return a.start - b.start; });
+          var alt = V.layout === "alternate";
+          var vis = (V.visual || []).slice().sort(function (a, b) { return a.start - b.start; });
+          var pips = alt ? [] : (V.pip || []).slice().sort(function (a, b) { return a.start - b.start; });
+          if (alt) document.getElementById("root").className = "alt";
           var inPip = pips.length && pips[0].start <= 0.05;
           gsap.set("#vw", inPip ? pipWrap : fullWrap);
           gsap.set("#clip", inPip ? pipVid : fullVid);
@@ -238,6 +251,18 @@
               tl.set("#caps", { className: "full" }, e + T / 2);
               tl.to("#hud", { opacity: 0, duration: 0.15, ease: "power2.in" }, e - 0.15);
             }
+          });
+
+          // layout "alternate": the speaker dissolves out / in around each visual span (0.4 s,
+          // centred on the boundary, with a slight push-in) while the stage beat fades over it;
+          // the caption keeps one style in both parts
+          var XF = 0.4, ZM = 1.06;
+          if (alt) caps.className = "full";
+          vis.forEach(function (v) {
+            var a = q(v.start - XF / 2), b = q(v.end - XF / 2);
+            if (v.start > 0.05) tl.fromTo("#vw", { opacity: 1, scale: 1 }, { opacity: 0, scale: ZM, duration: XF, ease: "power2.inOut", immediateRender: false }, Math.max(0, a));
+            else tl.set("#vw", { opacity: 0 }, 0);
+            if (v.end < D - 0.05) tl.fromTo("#vw", { opacity: 0, scale: ZM }, { opacity: 1, scale: 1, duration: XF, ease: "power2.inOut", immediateRender: false }, b);
           });
 
           // ---- stage beats
@@ -284,7 +309,8 @@
             });
             // phrases wider than the frame shrink to fit (fonts are loaded here)
             Array.prototype.forEach.call(caps.children, function (ph) {
-              if (ph.scrollWidth > 1000) ph.style.fontSize = Math.floor(48 * 1000 / ph.scrollWidth) + "px";
+              var fs = parseFloat(getComputedStyle(ph).fontSize);
+              if (ph.scrollWidth > 1000) ph.style.fontSize = Math.floor(fs * 1000 / ph.scrollWidth) + "px";
             });
           }
 
