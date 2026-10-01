@@ -29,13 +29,14 @@
       #vig { position: absolute; inset: 0; pointer-events: none;
         background: radial-gradient(ellipse 80% 60% at 50% 45%, transparent 40%, rgba(0, 0, 0, 0.55) 100%); }
 
-      /* caption: same typography as talking-head.html's full-screen caption style */
+      /* caption: same typography as talking-head.html's full-screen caption style; inside the
+         Reels safe zone (x 90-990: Instagram crops the sides on tall phones) */
       #caps { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
-      .ph { position: absolute; left: 40px; width: 1000px; top: 1120px; text-align: center; white-space: nowrap;
+      #caps .ph { position: absolute; left: 90px; width: 900px; top: 1120px; text-align: center; white-space: nowrap;
         font-size: 60px; font-weight: 600; color: var(--overlay-text); text-shadow: 0 3px 16px rgba(0, 0, 0, 0.7); opacity: 0; }
-      .ph .w { opacity: 0.28; }
-      .ph .w.bold { font-weight: 800; text-transform: uppercase; box-shadow: inset 0 -8px 0 var(--accent-hi); }
-      .ph .w.serif { font-family: var(--font-accent); font-style: var(--accent-style); font-weight: 700; }
+      #caps .ph .w { opacity: 0.28; }
+      #caps .ph .w.bold { font-weight: 800; text-transform: uppercase; box-shadow: inset 0 -8px 0 var(--accent-hi); }
+      #caps .ph .w.serif { font-family: var(--font-accent); font-style: var(--accent-style); font-weight: 700; }
     </style>
   </head>
   <body>
@@ -95,7 +96,7 @@
             });
             // phrases wider than the frame shrink to fit (fonts are loaded here)
             Array.prototype.forEach.call(caps.children, function (ph) {
-              if (ph.scrollWidth > 1000) ph.style.fontSize = Math.floor(60 * 1000 / ph.scrollWidth) + "px";
+              if (ph.scrollWidth > 900) ph.style.fontSize = Math.floor(60 * 900 / ph.scrollWidth) + "px";
             });
           }
 

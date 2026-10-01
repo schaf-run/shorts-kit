@@ -607,15 +607,22 @@ def srt(ww, total):
 
 
 def cmd_spans(a):
-    """Suggested face / visual parts for template "alternate" (3-7 s each, cut in word gaps),
-    with the words spoken in each; paste the visual ones into composition.json "visual"."""
+    """Suggested parts (3-7 s each, cut in word gaps) with the words spoken in each. Template
+    "mix" (default): the kinds are only a starting cycle - pick face / overlay / graphics per part
+    from what is said, then paste "parts" into composition.json. --alternate: face / visual
+    parts and the "visual" JSON of template "alternate"."""
     work, p = project(a.work)
     cut = load(work / "cut.json")
-    parts = alternate_spans(cut["words"], cut["duration"], a.min, a.max)
+    cycle = ALT_CYCLE if a.alternate else MIX_CYCLE
+    parts = part_spans(cut["words"], cut["duration"], cycle, a.min, a.max)
     for x in parts:
         text = " ".join(w["w"] for w in cut["words"] if x["start"] <= (w["s"] + w["e"]) / 2 < x["end"])
-        print(f"{x['kind']:6} {x['start']:6.2f}-{x['end']:6.2f} ({x['end'] - x['start']:.1f} s)  {text}")
-    print(json.dumps({"visual": [{"start": x["start"], "end": x["end"]} for x in parts if x["kind"] == "visual"]}))
+        kind = "visual" if a.alternate and x["kind"] == "graphics" else x["kind"]
+        print(f"{kind:8} {x['start']:6.2f}-{x['end']:6.2f} ({x['end'] - x['start']:.1f} s)  {text}")
+    if a.alternate:
+        print(json.dumps({"visual": [{"start": x["start"], "end": x["end"]} for x in parts if x["kind"] == "graphics"]}))
+    else:
+        print(json.dumps({"parts": parts}))
 
 
 # ---------- compose (HyperFrames owns the frame) ----------
@@ -623,8 +630,12 @@ def cmd_spans(a):
 STAGE_KINDS = {"title", "number", "list", "chat", "compare", "window", "custom"}
 LUCIDE = HYPERFRAMES / "node_modules" / "lucide-static"
 # composition.json "template": which HyperFrames frame renders the clip (references/templates.md)
-TEMPLATES = {"visuals": "talking-head.html", "simple": "simple.html", "alternate": "talking-head.html"}
-ALT_SPAN = (3.0, 7.0)  # template "alternate": every face / visual part lasts 3-7 s
+TEMPLATES = {"visuals": "talking-head.html", "simple": "simple.html", "alternate": "talking-head.html",
+             "mix": "talking-head.html"}
+PART_SPAN = (3.0, 7.0)  # templates "mix" and "alternate": every part lasts 3-7 s
+PART_KINDS = ("face", "graphics", "overlay")  # template "mix": the kind of each part (references/edit-rules.md §2)
+MIX_CYCLE = ("face", "overlay", "face", "graphics")  # default kinds for "mix" (vid spans, no "parts")
+ALT_CYCLE = ("face", "graphics")  # template "alternate": strict turns
 # tokens every template uses; brand/theme.css must define all of them
 THEME_TOKENS = ["--bg", "--panel", "--panel-2", "--text", "--muted", "--overlay-text", "--accent", "--accent-hi",
                 "--edge", "--line", "--vignette", "--font-sans", "--font-accent", "--accent-style"]
@@ -717,10 +728,10 @@ def face_box(video, every=1.0):
     return {"x": b[0], "y": b[1], "w": b[2], "h": b[3]} if b else None
 
 
-def alternate_spans(words, dur, lo=ALT_SPAN[0], hi=ALT_SPAN[1], target=5.0):
-    """Default parts for template "alternate": face, visual, face, ... each lo-hi s, cut in the
-    widest word gap near `target` s, preferring sentence ends, then commas.
-    Returns [{"start", "end", "kind": "face"|"visual"}]."""
+def part_spans(words, dur, cycle=MIX_CYCLE, lo=PART_SPAN[0], hi=PART_SPAN[1], target=5.0):
+    """Default parts for templates "mix" / "alternate": kinds from `cycle`, each lo-hi s, cut in
+    the widest word gap near `target` s, preferring sentence ends, then commas.
+    Returns [{"start", "end", "kind"}]."""
     stop = lambda w: 0.6 if re.search(r"[.!?…]$", w) else 0.2 if re.search(r"[,;:—-]$", w) else 0.0
     gaps = [((x["e"] + y["s"]) / 2, y["s"] - x["e"] + stop(x["w"])) for x, y in zip(words, words[1:])]
     edges, cur = [0.0], 0.0
@@ -731,26 +742,45 @@ def alternate_spans(words, dur, lo=ALT_SPAN[0], hi=ALT_SPAN[1], target=5.0):
     if dur - cur < lo and len(edges) > 1 and dur - edges[-2] <= hi:
         edges.pop()  # a short tail joins the previous part
     edges.append(round(dur, 3))
-    return [{"start": a, "end": b, "kind": ("face", "visual")[i % 2]}
+    return [{"start": a, "end": b, "kind": cycle[i % len(cycle)]}
             for i, (a, b) in enumerate(zip(edges, edges[1:]))]
 
 
-def check_alternate(comp, dur):
-    """Template "alternate": visual spans and the face parts between them last 3-7 s, face first."""
-    warn, vis = [], sorted(comp["visual"], key=lambda v: v["start"])
-    lo, hi = ALT_SPAN
-    if not vis:
-        warn.append("no visual spans: template alternate needs face / visual parts (vid spans WORK suggests them)")
-    edges = [0.0] + [t for v in vis for t in (v["start"], v["end"])] + [dur]
-    for i, (x, y) in enumerate(zip(edges, edges[1:])):
-        kind = ("face", "visual")[i % 2]
-        if y - x < -0.01:
-            warn.append(f"visual spans overlap or run past the end near {x:.2f} s")
-        elif kind == "face" and y - x < 0.05 and (i == 0 or y >= dur - 0.05):
-            if i == 0:
-                warn.append("starts with visuals: the face part comes first (the hook)")
-        elif not lo - 0.05 <= y - x <= hi + 0.05:
-            warn.append(f"{kind} part {x:.2f}-{y:.2f} s lasts {y - x:.1f} s, keep parts {lo:.0f}-{hi:.0f} s")
+def visual_to_parts(visual, dur):
+    """Template "alternate": its "visual" spans -> mix parts (graphics), face parts in between."""
+    parts, cur = [], 0.0
+    for v in sorted(visual, key=lambda v: v["start"]):
+        if v["start"] - cur > 0.05:
+            parts.append({"start": cur, "end": v["start"], "kind": "face"})
+        parts.append({"start": v["start"], "end": v["end"], "kind": "graphics"})
+        cur = v["end"]
+    if dur - cur > 0.05:
+        parts.append({"start": cur, "end": dur, "kind": "face"})
+    return parts
+
+
+def check_parts(parts, dur):
+    """Templates "mix" / "alternate": parts tile the clip, last 3-7 s, neighbours differ in kind,
+    the face is on screen first (the hook)."""
+    warn, lo, hi = [], *PART_SPAN
+    if not parts:
+        return ["no parts: template mix needs parts (vid spans WORK suggests them)"]
+    if parts[0]["kind"] == "graphics":
+        warn.append("starts with graphics: the face comes first (the hook) - start with face or overlay")
+    cur = 0.0
+    for i, x in enumerate(parts):
+        tag = f"{x.get('kind')} part {x['start']:.2f}-{x['end']:.2f} s"
+        if x.get("kind") not in PART_KINDS:
+            warn.append(f"{tag}: kind must be one of {', '.join(PART_KINDS)}")
+        if abs(x["start"] - cur) > 0.05:
+            warn.append(f"{tag}: parts must follow each other without gaps or overlaps (previous ends {cur:.2f} s)")
+        if not lo - 0.05 <= x["end"] - x["start"] <= hi + 0.05:
+            warn.append(f"{tag} lasts {x['end'] - x['start']:.1f} s, keep parts {lo:.0f}-{hi:.0f} s")
+        if i and x.get("kind") == parts[i - 1].get("kind"):
+            warn.append(f"{tag}: same kind as the part before - merge them or change one")
+        cur = x["end"]
+    if abs(cur - dur) > 0.05:
+        warn.append(f"parts end at {cur:.2f} s, the clip at {dur:.2f} s")
     return warn
 
 
@@ -812,9 +842,11 @@ def cmd_compose(a):
     """cut.json + composition.json -> out/final.mp4 (+ .srt) rendered by HyperFrames.
     Without composition.json: template "visuals" (talking-head.html), speaker full -> circle
     -> full, captions, empty stage. composition.json {"template": "simple"} (simple.html):
-    speaker full screen throughout, captions only, no pip/beats. {"template": "alternate"}
-    (talking-head.html, layout alternate): full-screen face parts and full-frame graphics parts
-    ("visual" spans, voice continues) take turns every 3-7 s, captions throughout."""
+    speaker full screen throughout, captions only, no pip/beats. {"template": "mix"}
+    (talking-head.html, layout mix): parts of 3-7 s, each face (speaker full screen), graphics
+    (full-frame stage, voice continues) or overlay (speaker full screen, small graphics on top),
+    captions throughout. {"template": "alternate"}: older strict face / graphics turns ("visual"
+    spans), rendered as mix parts."""
     work, p = project(a.work)
     if not (work / "cut.json").exists():
         die("no cut.json - run vid cut first")
@@ -833,14 +865,26 @@ def cmd_compose(a):
         face = face_box(cut["video"])
         if not face:
             warn.append("no face found in the clip: the circle shows the frame centre")
-    elif tname == "alternate":
-        comp.setdefault("visual", [{"start": x["start"], "end": x["end"]}
-                                   for x in alternate_spans(cut["words"], dur) if x["kind"] == "visual"])
+    elif tname in ("mix", "alternate"):
+        if tname == "alternate":
+            comp.setdefault("visual", [{"start": x["start"], "end": x["end"]}
+                                       for x in part_spans(cut["words"], dur, ALT_CYCLE) if x["kind"] == "graphics"])
+            comp["parts"] = visual_to_parts(comp["visual"], dur)
+        else:
+            comp.setdefault("parts", part_spans(cut["words"], dur))
+        comp["parts"] = sorted(comp["parts"], key=lambda x: x["start"])
         comp.setdefault("beats", [])
         comp["pip"] = []
-        warn = check_alternate(comp, dur) + check_composition(comp, dur, comp["visual"], 0.0, "a visual span")
-        warn += [f"visual span {v['start']}-{v['end']} has no beats" for v in comp["visual"]
-                 if not any(v["start"] - 0.01 <= b.get("start", -1) < v["end"] for b in comp["beats"])]
+        shown = [x for x in comp["parts"] if x.get("kind") in ("graphics", "overlay")]
+        warn = check_parts(comp["parts"], dur) + check_composition(comp, dur, shown, 0.0,
+                                                                     "a graphics or overlay part")
+        warn += [f"{x['kind']} part {x['start']}-{x['end']} has no beats" for x in shown
+                 if not any(x["start"] - 0.01 <= b.get("start", -1) < x["end"] for b in comp["beats"])]
+        for b in comp["beats"]:  # which box the beat goes in: the part it starts in
+            part = next((x for x in shown if x["start"] - 0.01 <= b.get("start", -1) < x["end"]), None)
+            b["slot"] = "overlay" if part and part["kind"] == "overlay" else "stage"
+        if any(x["kind"] == "overlay" for x in comp["parts"]):
+            face = face_box(cut["video"])  # the overlay box shrinks when the head reaches into it
     elif comp.get("pip") or comp.get("beats"):
         warn.append("template simple ignores pip/beats; drop them or switch template to visuals")
     words = fix_words(cut["words"], comp.get("fix", {}))
@@ -849,7 +893,7 @@ def cmd_compose(a):
         "words": words, "caption": comp.get("caption", True),
         "emph": {norm_word(k): v for k, v in comp.get("emph", {}).items()},
         "beats": [prepare_beat(b, i, warn) for i, b in enumerate(comp.get("beats", []))],
-        "layout": "alternate" if tname == "alternate" else "pip", "visual": comp.get("visual", []),
+        "layout": "mix" if tname in ("mix", "alternate") else "pip", "parts": comp.get("parts", []),
     }
     out = Path(a.out) if a.out else work / "out" / "final.mp4"
     tmpdir = HYPERFRAMES / ".tmp"  # HyperFrames refuses an entry file outside its project dir
@@ -876,7 +920,9 @@ def cmd_compose(a):
     out.with_suffix(".srt").write_text(srt(words, dur))
     real = probe(out)["duration"]
     detail = {"visuals": f", {len(comp.get('beats', []))} beats, pip {comp.get('pip', [])}",
-              "alternate": f", {len(comp.get('beats', []))} beats, visual {comp.get('visual', [])}"}.get(tname, "")
+              "alternate": f", {len(comp.get('beats', []))} beats, visual {comp.get('visual', [])}",
+              "mix": f", {len(comp.get('beats', []))} beats, parts "
+                     + " ".join(f"{x['kind']}:{x['start']}-{x['end']}" for x in comp.get("parts", []))}.get(tname, "")
     print(f"{out}  {ts(real)}, template {tname}{detail}")
     for w in warn:
         print(f"warning: {w}", file=sys.stderr)
@@ -1004,8 +1050,9 @@ def cmd_edit(a):
     if not (work / "composition.json").exists():
         print(f"NEXT: design {work / 'composition.json'} from {work / 'cut.txt'} (see references/edit-rules.md §2; "
               "default template \"visuals\" designs stage graphics, \"template\": \"simple\" is full-screen "
-              "captions only, no graphics, \"template\": \"alternate\" swaps face and full-frame graphics "
-              "parts every 3-7 s, vid spans WORK suggests them), then rerun vid edit")
+              "captions only, no graphics, \"template\": \"mix\" cuts the clip into 3-7 s parts, each face, "
+              "full-frame graphics or overlay graphics over the face - vid spans WORK suggests the parts), "
+              "then rerun vid edit")
         return
     final = work / "out" / "final.mp4"
     tname = load(work / "composition.json").get("template", "visuals")
@@ -1072,7 +1119,7 @@ PREVIEW_TEXT = "Так выглядят субтитры в вашем стил�
 
 def cmd_preview(a):
     """brand/preview/: carousel.jpg (examples/carousel rendered) and video.jpg (frames of a
-    synthetic clip in both video templates), so a style change can be checked in one look."""
+    synthetic clip in every video template), so a style change can be checked in one look."""
     NS = argparse.Namespace
     out = BRAND / "preview"
     out.mkdir(exist_ok=True)
@@ -1119,6 +1166,17 @@ def cmd_preview(a):
                      '<div class="card hot"><div class="h1">3-7 c</div></div>'
                      '<div class="card"><div class="h2"><span class="ser">графика</span> на весь кадр</div></div></div>',
              "anim": [{"sel": ".card", "at": 2.1, "from": {"opacity": 0, "y": 60}, "stagger": 0.2}]}]},
+        "mix": {"template": "mix", "emph": emph, "parts": [
+            {"start": 0.0, "end": 1.8, "kind": "face"}, {"start": 1.8, "end": 4.4, "kind": "overlay"},
+            {"start": 4.4, "end": 7.0, "kind": "graphics"}], "beats": [
+            {"kind": "custom", "start": 1.8, "end": 4.4,
+             "html": '<div class="row"><div class="card hot"><i data-icon="layers" class="lg"></i></div>'
+                     '<div class="card"><div class="lbl">поверх лица</div><div class="h2">overlay</div></div></div>',
+             "anim": [{"sel": ".card", "at": 1.9, "from": {"opacity": 0, "y": -30}, "stagger": 0.3}]},
+            {"kind": "custom", "start": 4.4, "end": 7.0,
+             "html": '<div class="col center"><div class="lbl">без лица, только голос</div>'
+                     '<div class="card hot"><div class="h1">graphics</div></div></div>',
+             "anim": [{"sel": ".card", "at": 4.5, "from": {"opacity": 0, "y": 60}}]}]},
     }
     sheets = []
     for name, comp in comps.items():
@@ -1129,7 +1187,7 @@ def cmd_preview(a):
         cmd_sheet(NS(video=str(work / "out" / f"{name}.mp4"), n=4, cols=4, width=270, out=str(sheet)))
         sheets.append(sheet)
     tile_sheet(sheets, out / "video.jpg", cols=1, width=1080)
-    print(f"preview: {out / 'video.jpg'} (rows: visuals, simple, alternate)"
+    print(f"preview: {out / 'video.jpg'} (rows: visuals, simple, alternate, mix)"
           + ("" if a.video_only else f", {out / 'carousel.jpg'}"))
 
 
@@ -1319,10 +1377,11 @@ def main():
     s.add_argument("--keep-tmp", action="store_true", help="keep the staged html/clip/variables in hyperframes/.tmp")
     s.set_defaults(f=cmd_compose)
 
-    s = sub.add_parser("spans", help="template alternate: suggested face / visual parts (3-7 s) with their words")
+    s = sub.add_parser("spans", help="templates mix / alternate: suggested 3-7 s parts with their words")
     s.add_argument("work")
-    s.add_argument("--min", type=float, default=ALT_SPAN[0])
-    s.add_argument("--max", type=float, default=ALT_SPAN[1])
+    s.add_argument("--alternate", action="store_true", help="face / visual turns of template alternate")
+    s.add_argument("--min", type=float, default=PART_SPAN[0])
+    s.add_argument("--max", type=float, default=PART_SPAN[1])
     s.set_defaults(f=cmd_spans)
 
     s = sub.add_parser("say", help="find when a phrase was spoken -> time and matched words")
